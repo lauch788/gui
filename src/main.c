@@ -23,6 +23,10 @@
 typedef struct GUIWindow_s {
   SDL_Window *win;
   int w, h;
+  double epsilon;
+  double off_x;
+  double off_y;
+  double mag;
 } GUIWindow;
 
 typedef struct GUIContext_s {
@@ -33,7 +37,6 @@ typedef struct GUIContext_s {
 
   uint64_t tLast, tNow;
   double frameDelta;
-
 } GUIContext;
 
 void
@@ -74,86 +77,74 @@ window_event(GUIWindow *win, const SDL_Event *ev)
   {
     win->w = ev->window.data1;
     win->h = ev->window.data2;
+    return;
   }
-}
 
-static void
-sqrt_draw(GUIContext *ctx)
-{
-  SDL_SetRenderDrawColor(ctx->rend, 0xFF, 0x00, 0x00, 0xFF);
-  for (int screenX = 0; screenX < ctx->win.w; screenX++)
+  if (ev->type == SDL_KEYDOWN)
   {
-    double realX = (double)screenX/ctx->win.w;
-    double realY = sqrt(realX);
-    int screenY = ctx->win.h - (realY * ctx->win.h);
-    SDL_RenderDrawPoint(ctx->rend, screenX, screenY);
+    if (ev->key.keysym.scancode == SDL_SCANCODE_DOWN)
+    {
+      win->off_y -= 0.1*win->mag;
+      return;
+    }
+    if (ev->key.keysym.scancode == SDL_SCANCODE_UP)
+    {
+      win->off_y += 0.1*win->mag;
+      return;
+    }
+    if (ev->key.keysym.scancode == SDL_SCANCODE_LEFT)
+    {
+      win->off_x -= 0.1*win->mag;
+      return;
+    }
+    if (ev->key.keysym.scancode == SDL_SCANCODE_RIGHT)
+    {
+      win->off_x += 0.1*win->mag;
+      return;
+    }
+
+    if (ev->key.keysym.scancode == SDL_SCANCODE_D)
+    {
+      win->epsilon += 0.01;
+      return;
+    }
+    if (ev->key.keysym.scancode == SDL_SCANCODE_A)
+    {
+      win->epsilon -= 0.01;
+      return;
+    }
+
+    if (ev->key.keysym.scancode == SDL_SCANCODE_E)
+    {
+      win->mag += 0.1;
+      return;
+    }
+    if (ev->key.keysym.scancode == SDL_SCANCODE_Q)
+    {
+      win->mag -= 0.1;
+      return;
+    }
+    
+    return;
   }
+
 }
 
 static void
-cubic_draw(GUIContext *ctx)
+curve_draw(GUIContext *ctx)
 {
-  SDL_SetRenderDrawColor(ctx->rend, 0x00, 0xFF, 0x00, 0xFF);
-  for (int screenX = 0; screenX < ctx->win.w; screenX++)
+  SDL_SetRenderDrawColor(ctx->rend, 0xFF, 0xC3, 0x00, 0xFF);
+  for (int sy = 0; sy < ctx->win.h; sy++)
+  for (int sx = 0; sx < ctx->win.w; sx++)
   {
-    double realX = (double)screenX/ctx->win.w;
-    double realY = easeOutCubic(realX);
-    int screenY = ctx->win.h - (realY * ctx->win.h);
-    SDL_RenderDrawPoint(ctx->rend, screenX, screenY);
-  }
-}
+    double x = ctx->win.mag*((double)sx / ctx->win.w) + ctx->win.off_x;
+    double y = ctx->win.mag*((double)sy / ctx->win.h) + ctx->win.off_y;
+    const double ε = ctx->win.epsilon;
 
-static void
-square_draw(GUIContext *ctx)
-{
-  SDL_SetRenderDrawColor(ctx->rend, 0x00, 0x00, 0xFF, 0xFF);
-  for (int screenX = 0; screenX < ctx->win.w; screenX++)
-  {
-    double realX = (double)screenX/ctx->win.w;
-    double realY = 2.0*realX*realX;
-    int screenY = ctx->win.h - (realY * ctx->win.h);
-    SDL_RenderDrawPoint(ctx->rend, screenX, screenY);
-  }
-}
-
-static void
-noisy_draw(GUIContext *ctx)
-{
- SDL_SetRenderDrawBlendMode(ctx->rend, SDL_BLENDMODE_NONE);
- SDL_SetRenderDrawColor(ctx->rend, 0xFF, 0xC3, 0x00, 0xFF);
-  for (int screenY = 0; screenY < ctx->win.h; screenY++) {
-    for (int screenX = 0; screenX < ctx->win.w; screenX++) {
-      double realX = (double)((10 * screenX) + 0) / ctx->win.w;
-      double realY = (double)((10 * screenY) + 0) / ctx->win.h;
-      if (fabs(fabs(sin(realX*realX - realY*realY)) - sin(realX + realY) + cos(realX*realY)) <= 0.15)
-        SDL_RenderDrawPoint(ctx->rend, screenX, ctx->win.h - screenY);
-    }
+    if (fabs(sin(x*x - y*y) - sin(x*y) + cos(x*y)) < ε)
+      SDL_RenderDrawPoint(ctx->rend, sx, ctx->win.h - sy);
   }
 
- SDL_SetRenderDrawColor(ctx->rend, 0xAF, 0x82, 0xC9, 0xFF);
-  for (int screenY = 0; screenY < ctx->win.h; screenY++) {
-    for (int screenX = 0; screenX < ctx->win.w; screenX++) {
-      double realX = (double)((10 * screenX) + 0) / ctx->win.w;
-      double realY = (double)((10 * screenY) + 0) / ctx->win.h;
-      {
-        double s = sin(realX*realX + realY*realY); s *= s;
-        double t = tan(realX*realX + realY*realY); t *= t;
-        if (fabs(s + t - 1.0) <= 0.0)
-          SDL_RenderDrawPoint(ctx->rend, screenX, ctx->win.h - screenY);
-      }
-    }
-  }
-
- SDL_SetRenderDrawBlendMode(ctx->rend, SDL_BLENDMODE_MOD);
-  SDL_SetRenderDrawColor(ctx->rend, 0xDB, 0xEF, 0x76, 0xFF);
-  for (int screenY = 0; screenY < ctx->win.h; screenY++) {
-    for (int screenX = 0; screenX < ctx->win.w; screenX++) {
-      double realX = (double)((10 * screenX) + 0) / ctx->win.w;
-      double realY = (double)((10 * screenY) + 0) / ctx->win.h;
-      if (fabs(sin(sin(realX)+cos(realY)) - cos(sin(realX*realY) + cos(realX))) <= 0.4)
-        SDL_RenderDrawPoint(ctx->rend, screenX, ctx->win.h - screenY);
-    }
-  }
 }
 
 static inline void
@@ -187,12 +178,9 @@ GUI_Main(GUIContext *ctx)
     }
 
     GUI_Redraw(ctx);
-    noisy_draw(ctx);
-    sqrt_draw(ctx);
-    cubic_draw(ctx);
-    square_draw(ctx);
+    curve_draw(ctx);
     SDL_RenderPresent(ctx->rend);
-    SDL_Delay(10);
+    SDL_Delay(30);
   }
 
 }
@@ -200,7 +188,15 @@ GUI_Main(GUIContext *ctx)
 int
 main(int argc, char *argv[])
 {
-  GUIContext ctx = { .win.w = 512, .win.h = 512 };
+  GUIContext ctx = {
+    .win.w = 512,
+    .win.h = 512,
+    .win.mag = 10.0,
+    .win.off_x = 0.0,
+    .win.off_y = 0.0,
+    // .win.offddd
+    .win.epsilon = 0.14
+  };
 
   GUI_CreateContext(&ctx);
   GUI_Main(&ctx);
