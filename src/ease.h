@@ -28,4 +28,17 @@ easeInBounce(double x)
   return 1.0 - easeOutBounce(1.0 - x);
 }
 
+inline double
+easeOutCubic(double x)
+{
+  register double r = 1.0 - x;
+  return 1.0 - r*r*r;
+}
+
+inline double
+easeInCubic(double x)
+{
+  return x*x*x;
+}
+
 #endif /* _GUI_EASE_H */

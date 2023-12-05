@@ -3,7 +3,7 @@
 
 CC = gcc -Wall -pedantic
 CFLAGS = -O2 -ggdb3
-LIBS = -lSDL2
+LIBS = -lSDL2 -lm
 
 SRC =\
 	src/main
